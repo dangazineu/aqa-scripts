@@ -1,15 +1,39 @@
 #!/bin/bash
 
+function main {
+  prepare_execution
+  run_suite_targets functional _sanity _extended _special
+  for suite in openjdk system perf ; do
+    run_suite_targets "$suite" _sanity _extended
+  done
+  cleanup_execution
+
+  if [ "$#" -eq 0 ]; then
+    echo "No gcloud storage bucked address was provided, skipping upload."
+  else
+    upload_results  "$1"
+  fi
+
+  echo "Done! Results file is at $results_file_location"
+}
+
 function prepare_execution {
+  # AQAVIT envvars
   if [ -z "$JAVA_HOME" ] ; then
     echo "\$JAVA_HOME must be set for this script to function properly"
     exit 1
   fi
+  export TEST_JDK_HOME=$JAVA_HOME
+  export USE_TESTENV_PROPERTIES=true
+  export JDK_VERSION=17
+  export JDK_IMPL=hotspot
 
-  # TODO OS distribution, version and architecture might be better
+
+  # TODO it may be better to pass these parameters from the execution trigger
+  #  rather than infer them from the system
+  # Also these variables are only used to name the results file.
   OS_DISTRIBUTION=$(lsb_release -si)
   OS_VERSION=$(lsb_release -sr)
-
   case $(uname -m) in
     "arm64") ARCH=arm64 ;;
     "aarch64") ARCH=arm64 ;;
@@ -21,12 +45,9 @@ function prepare_execution {
   pushd "$work_dir"
   mkdir results
   results_dir="$work_dir/results"
-  export TEST_JDK_HOME=$JAVA_HOME
-  export USE_TESTENV_PROPERTIES=true
-  export JDK_VERSION=17
-  export JDK_IMPL=hotspot
 }
 
+# This function creates a fresh checkout for the suite, under the assumption that get.sh and compile.sh may
 function prepare_suite {
   local suite=$1
   mkdir "$suite"
@@ -34,7 +55,8 @@ function prepare_suite {
   # TODO map branch name to JDK version
   # each aqa-tests release is tested for one specific set of JDK versions
   # https://github.com/adoptium/aqa-tests/releases/tag/v0.9.6
-  git clone --depth 1 --branch v0.9.6-release https://github.com/adoptium/aqa-tests.git
+  local branch="v0.9.6-release"
+  git clone --depth 1 --branch "$branch" https://github.com/adoptium/aqa-tests.git
   export BUILD_LIST=$suite
   cd aqa-tests
   ./get.sh
@@ -72,17 +94,4 @@ function run_suite_targets {
     cleanup_suite
 }
 
-prepare_execution
-run_suite_targets functional _sanity _extended _special
-for suite in openjdk system perf ; do
-  run_suite_targets "$suite" _sanity _extended
-done
-cleanup_execution
-
-if [ "$#" -eq 0 ]; then
-  echo "No gcloud storage bucked address was provided, skipping upload."
-else
-  upload_results  "$1"
-fi
-
-echo "Done! Results file is at $results_file_location"
+main "$@"
