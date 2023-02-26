@@ -47,7 +47,9 @@ function prepare_execution {
   results_dir="$work_dir/results"
 }
 
-# This function creates a fresh checkout for the suite, under the assumption that get.sh and compile.sh may
+# This function creates a fresh checkout for the suite, under the assumption
+# that get.sh and compile.sh may not be compatible with multiple invocations
+# for different BUILD_LIST values. Should simplify this if that's not the case.
 function prepare_suite {
   local suite=$1
   mkdir "$suite"
